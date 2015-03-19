@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>SDUG Presentation</title>
+    <link rel="stylesheet" type="text/css" href="build/build.css">
+  </head>
+  <body>
+    <header><img src="images/AD-wordmark.png"><a href="http://albatrossdigital.com"><strong>http://albatrossdigital.com</strong></a></header>
+    <article>
+      <section><img src="images/AD-wordmark.png" width="130">
+        <h2>A Headless Drupal 8 Case Study</h2>
+      </section>
+      <section>
+        <h3>Drupal 8 Key Components:</h3>
+        <h4>Rest modules</h4>
+        <ul>
+          <li><strong>HAL</strong> - Serializes entities using Hypertext Application Language.</li>
+          <li><strong>HTTP Basic Authentication</strong> - Provides the HTTP Basic authentication provider</li>
+          <li><strong>REST UI</strong> - Provides a user interface to manage REST resources</li>
+          <li><strong>RESTful Web Services</strong> - Exposes entities and other resources as RESTful web API</li>
+          <li><strong>Serialization</strong> - Provides a service for (de)serializing data to/from formats such as JSON and XML</li>
+        </ul>
+      </section>
+      <section>
+        <h3>Rest Module Configuration</h3><img src="images/node-rest-setting.jpg">
+        <p><strong>Auth:</strong> basic_auth (we're really only concerned with GET), Format: hal_json</p>
+        <p><strong>Repeat</strong> for block, taxonomy term, user, ect to fit your needs</p>
+      </section>
+      <section>
+        <h3>Rest Module Permissions</h3><img src="images/node-rest-permissions.jpg">
+        <p><strong>Don't forget</strong> to grant "Anonymous" GET access to your entities!</p>
+      </section>
+      <section>
+        <h3>Enable cors for core</h3>
+        <p>Theres a hack for .htaccess</p>
+        <pre><code class="language-apacheconf"># ..... add this
+# Intercept OPTIONS calls
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule .* / [R=200,L]
+
+# .... and this
+Header always set Access-Control-Allow-Origin "*"
+Header always set Access-Control-Allow-Methods "POST, GET, OPTIONS, PATCH, DELETE"
+Header always set Access-Control-Allow-Headers: Authorization</code></pre>
+        <p><strong>Either use the hack:</strong> <a href="http://enzolutions.com/articles/2014/09/08/how-to-enable-cors-requests-against-drupal-8/">http://enzolutions.com/articles/2014/09/08/how-to-enable-cors-requests-against-drupal-8/</a></p>
+        <p><strong>Or follow the active development:</strong> <a href="https://www.drupal.org/node/1869548">https://www.drupal.org/node/1869548</a></p>
+      </section>
+      <section>
+        <h3>REST Views for each entity...</h3>
+        <ul>
+          <li>Node</li>
+          <li>User</li>
+          <li>Taxonomy</li>
+          <li>Use <strong>display</strong> "REST export" with <strong>format</strong> "serializer"</li>
+          <li>Maintain a URL pattern, like <code>rest/:entity/:bundle/:a/:b/:c</code></li>
+        </ul>
+      </section>
+      <section>
+        <h3>Node View</h3><img src="images/node-view-config.jpg">
+      </section>
+      <section>
+        <h3>User View</h3><img src="images/user-view-config.jpg">
+      </section>
+      <section>
+        <h3>Taxonomy View</h3><img src="images/tax-view-config.jpg">
+      </section>
+      <section>
+        <h3>Angular App Key Modules </h3>
+        <ul>
+          <li><strong>Angular core:</strong></li>
+          <li>ngSanitize</li>
+          <li>ngAnimate</li>
+          <li>ngTouch</li>
+          <li>ngResource</li>
+          <li><br><strong>Contrib:</strong></li>
+          <li><a href="https://github.com/angular-ui/ui-router">uiRouter</a></li>
+        </ul>
+      </section>
+      <section>
+        <h3>Factory for a node / entity</h3>
+        <pre><code class="language-javascript">.factory('Node', ['$resource', '$rootScope', function ($resource, $rootScope) {
+  return $resource($rootScope.apiUrl + '/node/:nid', 
+    { 'nid': '@nid' },
+    {
+      get: {
+        method:'GET',
+        cache: true,
+        transformRequest: function(data, headersGetter) {
+          headersGetter()['Accept'] = 'application/hal+json';
+        }
+      }
+    }
+  );
+}])
+
+</code></pre>
+      </section>
+      <section>
+        <h3>Factory for our views</h3>
+        <pre><code class="language-javascript">.factory('View', ['$resource', '$rootScope', function ($resource, $rootScope) {
+  return $resource($rootScope.apiUrl + '/rest/:entity/:bundle/:a/:b/:c', 
+    {
+      entityType: '@entity',
+      name: '@bundle',
+      a: '@arg0'
+    },
+    {
+      query: {
+        method:'GET',
+        cache: true,
+        isArray: true,
+        transformRequest: function(data, headersGetter) {
+          headersGetter()['Accept'] = 'application/hal+json';
+        }
+      }
+    }
+  );
+}])
+</code></pre>
+      </section>
+      <section>
+        <h3>Using uiRouter</h3>
+        <p>The <code>resolve:</code> property is your best friend.</p>
+        <pre><code class="language-javascript">// Base route handles getching data, sub-routing 
+$stateProvider.state("node", {
+  url: "/node/:nid",
+  template: '<div class="node node-{{type}}" ui-view></div>',
+  resolve: {
+    node: function($state, $stateParams, Node) {
+      return Node.get({nid: $stateParams.nid}).$promise.then(function(data) {
+        $stateParams.type = data.type[0].target_id;
+        return data;
+      });
+    }
+  }
+  controller: function($scope, $rootScope, $state, node, metaInfo){
+    // ...
+  }
+});
+</code></pre>
+      </section>
+      <section>
+        <h3>Using uiRouter</h3>
+        <p>Set up html5 mode (no hasbang)</p>
+        <pre><code class="language-javascript">// set location provider as regular urls
+$locationProvider.html5Mode(true);
+
+// trailing slash and url re-rerouting
+$urlRouterProvider.rule(function ($injector, $location) {
+  var path = $location.url();
+  
+  var argPos = path.indexOf('/?');
+  
+  // check to see if the path already has a slash where it should be
+  if (path.length > 1) {
+    if(path[path.length - 1] === '/') {
+      return path.substring(0, path.length - 1);
+    }
+    else if(argPos > 0) {
+      return path.replace('/?', '?');
+    }
+    
+    return '/';
+  }
+});</code></pre>
+        <p>Inside the config method on your <code>angular.module('app');</code></p>
+      </section>
+      <section>
+        <h3>Using uiRouter</h3>
+        <p>Set up html5 mode (no hasbang)</p>
+        <pre><code class="language-apacheconf">Options +FollowSymLinks
+
+DirectoryIndex index.html
+
+&#60;IfModule mod_rewrite.c&#62;
+  # http://stackoverflow.com/questions/22739455/htaccess-redirect-for-angular-routes
+  RewriteEngine on
+  # Don't rewrite files or directories
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  
+  # Rewrite everything else to index.html to allow html5 state links
+  RewriteRule ^ index.html [L]
+&#60;/IfModule&#62;</code></pre>
+        <p>.htaccess configuration for the app</p>
+      </section>
+      <section>
+        <h3>Thanks!</h3>
+        <ul>
+          <li><strong>The actual site: </strong><a href="http://albatrossdigital.com">http://albatrossdigital.com</a></li>
+          <li><strong>A writeup about this process:</strong><a href="http://albatrossdigital.com/node/33">http://albatrossdigital.com/node/33</a></li>
+          <li><strong>Good starting point for the angular app: </strong><a href="https://github.com/albatrossdigital/angular-bootstrap-boilerplate">https://github.com/albatrossdigital/angular-bootstrap-boilerplate</a></li>
+          <li><strong>URL of this presentation: </strong><a href="http://aschmoe.github.io/d8-headless-presentation">http://aschmoe.github.io/d8-headless-presentation</a></li>
+        </ul>
+      </section>
+    </article>
+    <script src="build/build.js"></script>
+  </body>
+</html>
